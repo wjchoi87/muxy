@@ -1,0 +1,128 @@
+name: Release Android
+
+# SCAFFOLD — fill in signing + Play Store upload when the app is ready to ship.
+# Required secrets to add later:
+#   ANDROID_SIGNING_KEY_BASE64   - base64 of upload-keystore.jks
+#   ANDROID_KEY_STORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   PLAY_SERVICE_ACCOUNT_JSON    - base64 service-account JSON for Play upload (optional, can do manually first)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name (e.g. 1.0.0)"
+        required: true
+        type: string
+      version_code:
+        description: "Version code (integer, defaults to run number)"
+        required: false
+        type: string
+
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs
+        id: validate
+        run: |
+          VERSION_NAME="${{ inputs.version_name }}"
+          if ! [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: version_name must be X.Y.Z"
+            exit 1
+          fi
+          if [[ -n "${{ inputs.version_code }}" ]]; then
+            VERSION_CODE="${{ inputs.version_code }}"
+          else
+            VERSION_CODE="${{ github.run_number }}"
+          fi
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "Error: version_code must be numeric"
+            exit 1
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # TODO: enable when keystore secrets are configured.
+      # - name: Decode signing key
+      #   env:
+      #     SIGNING_KEY_BASE64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
+      #   run: |
+      #     echo "$SIGNING_KEY_BASE64" | base64 --decode > app/upload-keystore.jks
+
+      - name: Build Release AAB (unsigned for now)
+        env:
+          ORG_GRADLE_PROJECT_versionName: ${{ steps.validate.outputs.version_name }}
+          ORG_GRADLE_PROJECT_versionCode: ${{ steps.validate.outputs.version_code }}
+        run: ./gradlew bundleRelease
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ steps.validate.outputs.version_name }}-${{ steps.validate.outputs.version_code }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      # TODO: enable Play Store upload once a service account is configured.
+      # - name: Upload to Play Store
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.muxy.app
+      #     releaseFiles: android/app/build/outputs/bundle/release/*.aab
+      #     track: internal
+
+      - name: Create GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREV_TAG=$(gh release list \
+            --repo "${{ github.repository }}" \
+            --limit 100 \
+            --json tagName \
+            -q '[.[] | select(.tagName | startswith("android-v"))][0].tagName')
+
+          if [[ -n "$PREV_TAG" ]]; then
+            RANGE="$PREV_TAG..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          git log --no-merges -i --grep='^android:' --format='%s' "$RANGE" \
+            | sed -E 's/^[Aa]ndroid:[[:space:]]*/- /' \
+            > notes.md
+
+          if [[ ! -s notes.md ]]; then
+            echo "- No Android-facing changes since ${PREV_TAG:-initial release}" > notes.md
+          fi
+
+          gh release create "android-v${{ steps.validate.outputs.version_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "Android v${{ steps.validate.outputs.version_name }}" \
+            --notes-file notes.md \
+            --latest=false \
+            --target "${{ github.sha }}"

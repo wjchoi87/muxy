@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Xcode / Swift
+ios/.build/
+ios/build/
+ios/DerivedData/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/*.xcworkspace/xcuserdata/
+ios/private_keys/
+ios/ExportOptions.plist
+
+# Android / Gradle
+android/.gradle/
+android/.idea/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/*.iml
+android/**/*.iml
+android/app/upload-keystore.jks
+android/app/release.keystore
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
