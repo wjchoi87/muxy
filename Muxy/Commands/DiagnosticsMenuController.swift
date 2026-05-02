@@ -20,11 +20,14 @@ final class DiagnosticsMenuController {
                 queue: .main
             ) { [weak self] notification in
                 guard let self,
-                      let menu = notification.object as? NSMenu,
-                      menu === NSApp.mainMenu
+                      let menu = notification.object as? NSMenu
                 else { return }
+                let menuRef = ObjectIdentifier(menu)
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
+                        guard let mainMenu = NSApp.mainMenu,
+                              ObjectIdentifier(mainMenu) == menuRef
+                        else { return }
                         self.ensureInstalled()
                     }
                 }
