@@ -29,6 +29,7 @@ Muxy/
   MuxyApp.swift              App entry point, delegate, window setup
   Commands/
     MuxyCommands.swift        macOS menu bar commands
+    DiagnosticsMenuController.swift  Installs the Diagnostics menu (export snapshot, toggle periodic logging, reveal logs)
   Extensions/
     BundleExtension.swift     Bundle helper
     Notification+Names.swift  Custom notification names
@@ -64,6 +65,7 @@ Muxy/
     TerminalQuickSelectState.swift Keyboard quick-select match state and label generation
   Services/
     GhosttyService.swift      Singleton managing ghostty_app_t lifecycle
+    MemoryDiagnostics.swift   Offline diagnostics: process metrics, workspace counts, MetricKit payloads, periodic logs, snapshot export, unclean-shutdown crumb recovery
     GhosttyRuntimeEventAdapter.swift  C callback bridge from libghostty (OSC + command finished → notifications)
     NotificationStore.swift      @Observable notification store singleton (persisted to notifications.json)
     NotificationNavigator.swift  Pane context resolution + click-to-navigate dispatch

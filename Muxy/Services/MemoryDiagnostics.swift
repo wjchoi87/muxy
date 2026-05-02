@@ -25,11 +25,15 @@ final class MemoryDiagnostics: NSObject {
     private var crumbTimer: DispatchSourceTimer?
     private var disabledForSession = false
     private weak var appState: AppState?
-    private weak var projectStore: ProjectStore?
+    private let isoFormatter = ISO8601DateFormatter()
+    private let snapshotStampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate, .withTime]
+        return formatter
+    }()
 
-    func configure(appState: AppState, projectStore: ProjectStore) {
+    func configure(appState: AppState) {
         self.appState = appState
-        self.projectStore = projectStore
         MXMetricManager.shared.add(self)
         recoverPreviousSessionIfNeeded()
         startCrumbTimer()
@@ -87,7 +91,7 @@ final class MemoryDiagnostics: NSObject {
         guard !disabledForSession else { return }
         let line = buildPeriodicLine()
         let pid = getpid()
-        let payload = "pid=\(pid) launchedAt=\(ISO8601DateFormatter().string(from: MuxyApp.launchDate))\n\(line)\n"
+        let payload = "pid=\(pid) launchedAt=\(isoFormatter.string(from: MuxyApp.launchDate))\n\(line)\n"
         writeQueue.async { [weak self] in
             guard let self, let url = self.crumbURL() else { return }
             do {
@@ -103,7 +107,7 @@ final class MemoryDiagnostics: NSObject {
               let data = try? Data(contentsOf: url),
               let contents = String(data: data, encoding: .utf8)
         else { return }
-        let header = "=== PREVIOUS SESSION ENDED UNCLEANLY (recovered \(ISO8601DateFormatter().string(from: Date()))) ===\n"
+        let header = "=== PREVIOUS SESSION ENDED UNCLEANLY (recovered \(isoFormatter.string(from: Date()))) ===\n"
         let footer = "=== END PREVIOUS SESSION ===\n"
         let block = header + contents + (contents.hasSuffix("\n") ? "" : "\n") + footer
         writeQueue.async { [weak self] in
@@ -151,10 +155,7 @@ final class MemoryDiagnostics: NSObject {
     func exportSnapshot() -> URL? {
         guard let dir = ensureLogDirectory() else { return nil }
         let report = buildReport(periodic: false)
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime]
-        let stamp = formatter.string(from: Date())
-            .replacingOccurrences(of: ":", with: "-")
+        let stamp = snapshotStampFormatter.string(from: Date())
         let url = dir.appendingPathComponent("diagnostics-snapshot-\(stamp).txt")
         do {
             try report.write(to: url, atomically: true, encoding: .utf8)
@@ -243,7 +244,7 @@ final class MemoryDiagnostics: NSObject {
 
     private func buildPeriodicLine() -> String {
         let metrics = collectMetrics()
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = isoFormatter.string(from: Date())
         var parts: [String] = [timestamp]
         parts.append("footprint=\(metrics.footprintMB)MB")
         parts.append("peak=\(metrics.peakMB)MB")
@@ -263,7 +264,7 @@ final class MemoryDiagnostics: NSObject {
         let metrics = collectMetrics()
         var out = ""
         out += "Muxy Diagnostics Snapshot\n"
-        out += "Generated: \(ISO8601DateFormatter().string(from: Date()))\n"
+        out += "Generated: \(isoFormatter.string(from: Date()))\n"
         out += "App Version: \(appVersion())\n"
         out += "macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)\n"
         out += "Uptime: \(Int(Date().timeIntervalSince(MuxyApp.launchDate)))s\n"
@@ -489,7 +490,7 @@ extension MemoryDiagnostics: @preconcurrency MXMetricManagerSubscriber {
 
     private func persistMetricKitPayloads(_ payloads: [Data]) {
         guard let dir = ensureLogDirectory() else { return }
-        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let stamp = snapshotStampFormatter.string(from: Date())
         for (index, data) in payloads.enumerated() {
             let url = dir.appendingPathComponent("metrickit-\(stamp)-\(index).json")
             try? data.write(to: url, options: .atomic)
