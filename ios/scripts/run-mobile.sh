@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 if [ "${1:-}" = "stop" ]; then
   xcrun simctl terminate booted com.muxy.app 2>/dev/null && echo "MuxyMobile stopped" || echo "MuxyMobile not running"
   exit 0
