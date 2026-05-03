@@ -54,7 +54,7 @@ jobs:
           if [[ -n "${{ inputs.version_code }}" ]]; then
             VERSION_CODE="${{ inputs.version_code }}"
           else
-            VERSION_CODE="${{ github.run_number }}"
+            VERSION_CODE=$(date +%s)
           fi
           if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
             echo "Error: version_code must be numeric"
