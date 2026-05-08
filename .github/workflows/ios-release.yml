@@ -23,7 +23,7 @@ jobs:
       APP_WORKSPACE: ios/Muxy.xcworkspace
       APP_ARCHIVE_PATH: ios/build/Muxy.xcarchive
       APP_EXPORT_PATH: ios/build/export
-      BUNDLE_ID: app.muxy.mobile
+      BUNDLE_ID: com.muxy.app
     steps:
       - uses: actions/checkout@v4
         with:

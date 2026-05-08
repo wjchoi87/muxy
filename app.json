@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.muxy.mobile",
+      "bundleIdentifier": "com.muxy.app",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Muxy connects to your Mac on the local network to control its terminal sessions.",
         "NSAppTransportSecurity": {
@@ -19,7 +19,7 @@
       }
     },
     "android": {
-      "package": "app.muxy.mobile",
+      "package": "com.muxy.app",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0B",
         "foregroundImage": "./assets/images/android-icon-foreground.png"

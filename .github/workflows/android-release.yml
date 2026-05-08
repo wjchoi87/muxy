@@ -26,7 +26,7 @@ jobs:
     permissions:
       contents: write
     env:
-      PACKAGE_NAME: app.muxy.mobile
+      PACKAGE_NAME: com.muxy.app
     steps:
       - uses: actions/checkout@v4
         with:
@@ -173,7 +173,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: app.muxy.mobile
+          packageName: com.muxy.app
           releaseFiles: android/app/build/outputs/bundle/release/*.aab
           track: ${{ steps.validate.outputs.track }}
           status: draft
