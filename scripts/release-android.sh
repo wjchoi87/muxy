@@ -112,10 +112,13 @@ require_file ANDROID_SIGNING_KEY_PATH
 require_var ANDROID_KEY_STORE_PASSWORD
 require_var ANDROID_KEY_ALIAS
 require_var ANDROID_KEY_PASSWORD
-INIT_SCRIPT="$HOME/.gradle/init.d/release-signing.gradle"
+APP_JSON_BACKUP="$(mktemp)"
 
 cleanup() {
-  rm -f "$INIT_SCRIPT" || true
+  if [[ -f "$APP_JSON_BACKUP" ]]; then
+    cp "$APP_JSON_BACKUP" "$REPO_ROOT/app.json"
+    rm -f "$APP_JSON_BACKUP"
+  fi
 }
 trap cleanup EXIT
 
@@ -123,6 +126,7 @@ log "Installing JS deps"
 npm ci
 
 log "Writing version $VERSION_NAME ($VERSION_CODE) into app.json"
+cp "$REPO_ROOT/app.json" "$APP_JSON_BACKUP"
 node -e "
   const fs = require('fs');
   const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
@@ -133,36 +137,13 @@ node -e "
 "
 
 log "expo prebuild (Android)"
-npx expo prebuild --platform android --no-install --clean
+npx expo prebuild --platform android --no-install --clean --non-interactive
 
 log "Copying keystore into android/app/"
 cp "$ANDROID_SIGNING_KEY_PATH" "$KEYSTORE_DEST"
 
-log "Writing Gradle release-signing init script"
-mkdir -p "$(dirname "$INIT_SCRIPT")"
-cat > "$INIT_SCRIPT" <<'EOF'
-allprojects {
-  afterEvaluate { project ->
-    if (project.plugins.hasPlugin("com.android.application")) {
-      android {
-        signingConfigs {
-          release {
-            storeFile file("${project.projectDir}/upload-keystore.jks")
-            storePassword System.getenv("ANDROID_KEY_STORE_PASSWORD")
-            keyAlias System.getenv("ANDROID_KEY_ALIAS")
-            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-          }
-        }
-        buildTypes {
-          release {
-            signingConfig signingConfigs.release
-          }
-        }
-      }
-    }
-  }
-}
-EOF
+log "Patching android/app/build.gradle with release signing config"
+node "$SCRIPT_DIR/lib/patch_signing.js" android/app/build.gradle
 
 log "Building signed Release AAB"
 chmod +x android/gradlew

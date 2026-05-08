@@ -95,8 +95,13 @@ APP_WORKSPACE="ios/Muxy.xcworkspace"
 APP_ARCHIVE_PATH="ios/build/Muxy.xcarchive"
 BUNDLE_ID="com.muxy.app"
 KEYCHAIN_PATH="$HOME/Library/Keychains/muxy-build.keychain-db"
+APP_JSON_BACKUP="$(mktemp)"
 
 cleanup() {
+  if [[ -f "$APP_JSON_BACKUP" ]]; then
+    cp "$APP_JSON_BACKUP" "$REPO_ROOT/app.json"
+    rm -f "$APP_JSON_BACKUP"
+  fi
   if security list-keychains -d user | grep -q "muxy-build.keychain"; then
     security delete-keychain "$KEYCHAIN_PATH" || true
   fi
@@ -107,6 +112,7 @@ log "Installing JS deps"
 npm ci
 
 log "Writing version $VERSION ($BUILD_NUMBER) into app.json"
+cp "$REPO_ROOT/app.json" "$APP_JSON_BACKUP"
 node -e "
   const fs = require('fs');
   const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
@@ -117,7 +123,7 @@ node -e "
 "
 
 log "expo prebuild (iOS)"
-npx expo prebuild --platform ios --no-install --clean
+npx expo prebuild --platform ios --no-install --clean --non-interactive
 
 log "pod install"
 ( cd ios && pod install )

@@ -94,7 +94,7 @@ jobs:
           '
 
       - name: Expo prebuild (Android)
-        run: npx expo prebuild --platform android --no-install --clean
+        run: npx expo prebuild --platform android --no-install --clean --non-interactive
 
       - name: Make gradlew executable
         working-directory: android
@@ -110,36 +110,8 @@ jobs:
           fi
           echo "$SIGNING_KEY_BASE64" | base64 --decode > android/app/upload-keystore.jks
 
-      - name: Configure release signing
-        env:
-          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          mkdir -p ~/.gradle/init.d
-          cat > ~/.gradle/init.d/release-signing.gradle <<'EOF'
-          allprojects {
-            afterEvaluate { project ->
-              if (project.plugins.hasPlugin("com.android.application")) {
-                android {
-                  signingConfigs {
-                    release {
-                      storeFile file("${project.projectDir}/upload-keystore.jks")
-                      storePassword System.getenv("ANDROID_KEY_STORE_PASSWORD")
-                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-                    }
-                  }
-                  buildTypes {
-                    release {
-                      signingConfig signingConfigs.release
-                    }
-                  }
-                }
-              }
-            }
-          }
-          EOF
+      - name: Patch android/app/build.gradle with release signing config
+        run: node scripts/lib/patch_signing.js android/app/build.gradle
 
       - name: Build signed Release AAB
         working-directory: android

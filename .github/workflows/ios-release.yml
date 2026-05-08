@@ -77,7 +77,7 @@ jobs:
           '
 
       - name: Expo prebuild (iOS)
-        run: npx expo prebuild --platform ios --no-install --clean
+        run: npx expo prebuild --platform ios --no-install --clean --non-interactive
 
       - name: Ensure CocoaPods is installed
         run: |
