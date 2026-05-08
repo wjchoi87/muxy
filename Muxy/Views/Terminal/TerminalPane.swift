@@ -5,21 +5,38 @@ struct TerminalPane: View {
     let state: TerminalPaneState
     let focused: Bool
     let visible: Bool
+    let areaID: UUID
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
 
     @Bindable private var ownership = PaneOwnershipStore.shared
+    @Environment(\.overlayActive) private var overlayActive
 
     private var remoteOwnerName: String? {
         if case let .remote(_, name) = ownership.owner(for: state.id) { name } else { nil }
     }
 
     var body: some View {
+        terminalLayer
+            .onAppear { state.branchObserver.start() }
+            .onDisappear { state.branchObserver.stop() }
+            .onReceive(NotificationCenter.default.publisher(for: .refocusActiveTerminal)) { _ in
+                guard focused, visible else { return }
+                let view = TerminalViewRegistry.shared.existingView(for: state.id)
+                DispatchQueue.main.async {
+                    view?.window?.makeFirstResponder(view)
+                }
+            }
+    }
+
+    private var terminalLayer: some View {
         ZStack(alignment: .topTrailing) {
             TerminalBridge(
                 state: state,
                 focused: focused,
+                visible: visible,
+                areaID: areaID,
                 onFocus: onFocus,
                 onProcessExit: onProcessExit,
                 onSplitRequest: onSplitRequest
@@ -59,13 +76,6 @@ struct TerminalPane: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .refocusActiveTerminal)) { _ in
-            guard focused, visible else { return }
-            let view = TerminalViewRegistry.shared.existingView(for: state.id)
-            DispatchQueue.main.async {
-                view?.window?.makeFirstResponder(view)
-            }
-        }
     }
 }
 
@@ -74,26 +84,26 @@ struct RemoteControlledPlaceholder: View {
     let onTakeOver: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: UIMetrics.spacing7) {
             Spacer()
             Image(systemName: "iphone.gen3")
-                .font(.system(size: 28))
+                .font(.system(size: UIMetrics.fontMega))
                 .foregroundStyle(MuxyTheme.fgMuted)
             Text("Controlled by \(deviceName)")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: UIMetrics.fontHeadline, weight: .semibold))
                 .foregroundStyle(MuxyTheme.fg)
             Text("This terminal session is currently being used on \(deviceName). Take over to resume on Mac.")
-                .font(.system(size: 12))
+                .font(.system(size: UIMetrics.fontBody))
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
             Button {
                 onTakeOver()
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: UIMetrics.spacing4) {
                     Text("Take Over")
                     Text("⌘↩")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: UIMetrics.fontFootnote, weight: .medium, design: .rounded))
                         .opacity(0.72)
                 }
             }
@@ -109,6 +119,8 @@ struct RemoteControlledPlaceholder: View {
 struct TerminalBridge: NSViewRepresentable {
     let state: TerminalPaneState
     let focused: Bool
+    let visible: Bool
+    let areaID: UUID
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
@@ -133,13 +145,15 @@ struct TerminalBridge: NSViewRepresentable {
             commandInteractive: state.startupCommandInteractive
         )
         if view.envVars.isEmpty, let key = worktreeKey {
-            view.envVars = Self.buildEnvVars(paneID: state.id, worktreeKey: key)
+            view.envVars = TerminalEnvVarBuilder.build(paneID: state.id, worktreeKey: key)
         }
         view.isFocused = focused
         view.overlayActive = overlayActive
+        view.setVisible(visible)
         view.onFocus = onFocus
         view.onProcessExit = onProcessExit
         view.onSplitRequest = onSplitRequest
+        view.onExternalDragHoverChange = makeExternalDragHoverHandler(areaID: areaID)
         view.onTitleChange = { [weak state] title in
             DispatchQueue.main.async {
                 state?.setTitle(title)
@@ -152,6 +166,7 @@ struct TerminalBridge: NSViewRepresentable {
         }
         configureSearchCallbacks(view)
         configureFileOpenCallback(view)
+        configureProgressCallback(view)
         context.coordinator.wasFocused = focused
         if focused, !overlayActive {
             view.notifySurfaceFocused()
@@ -169,12 +184,14 @@ struct TerminalBridge: NSViewRepresentable {
 
     func updateNSView(_ nsView: GhosttyTerminalNSView, context: Context) {
         if nsView.envVars.isEmpty, nsView.surface == nil, let key = worktreeKey {
-            nsView.envVars = Self.buildEnvVars(paneID: state.id, worktreeKey: key)
+            nsView.envVars = TerminalEnvVarBuilder.build(paneID: state.id, worktreeKey: key)
         }
         nsView.overlayActive = overlayActive
+        nsView.setVisible(visible)
         nsView.onFocus = onFocus
         nsView.onProcessExit = onProcessExit
         nsView.onSplitRequest = onSplitRequest
+        nsView.onExternalDragHoverChange = makeExternalDragHoverHandler(areaID: areaID)
         nsView.onTitleChange = { [weak state] title in
             DispatchQueue.main.async {
                 state?.setTitle(title)
@@ -187,6 +204,7 @@ struct TerminalBridge: NSViewRepresentable {
         }
         configureSearchCallbacks(nsView)
         configureFileOpenCallback(nsView)
+        configureProgressCallback(nsView)
         let wasFocused = context.coordinator.wasFocused
         let wasOverlayActive = context.coordinator.wasOverlayActive
         context.coordinator.wasFocused = focused
@@ -210,17 +228,17 @@ struct TerminalBridge: NSViewRepresentable {
         }
     }
 
-    private static func buildEnvVars(paneID: UUID, worktreeKey key: WorktreeKey) -> [(key: String, value: String)] {
-        var vars: [(key: String, value: String)] = [
-            (key: "MUXY_PANE_ID", value: paneID.uuidString),
-            (key: "MUXY_PROJECT_ID", value: key.projectID.uuidString),
-            (key: "MUXY_WORKTREE_ID", value: key.worktreeID.uuidString),
-            (key: "MUXY_SOCKET_PATH", value: NotificationSocketServer.socketPath),
-        ]
-        if let hookPath = MuxyNotificationHooks.hookScriptPath {
-            vars.append((key: "MUXY_HOOK_SCRIPT", value: hookPath))
+    private func makeExternalDragHoverHandler(areaID: UUID) -> (Bool) -> Void {
+        { hovering in
+            NotificationCenter.default.post(
+                name: .externalDragHoverChanged,
+                object: nil,
+                userInfo: [
+                    ExternalDragHoverUserInfoKey.isHovering: hovering,
+                    ExternalDragHoverUserInfoKey.areaID: areaID,
+                ]
+            )
         }
-        return vars
     }
 
     private func configureFileOpenCallback(_ view: GhosttyTerminalNSView) {
@@ -237,13 +255,15 @@ struct TerminalBridge: NSViewRepresentable {
             Self.resolveFilePath(token, projectPath: projectPath) != nil
         }
         view.onOpenURL = { url in
-            guard let projectID, url.isFileURL else { return false }
-            let path = url.path
-            guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
-            Task { @MainActor in
-                NotificationStore.shared.appState?.openFile(path, projectID: projectID, preserveFocus: true)
+            if let projectID, url.isFileURL {
+                let path = url.path
+                guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
+                Task { @MainActor in
+                    NotificationStore.shared.appState?.openFile(path, projectID: projectID, preserveFocus: true)
+                }
+                return true
             }
-            return true
+            return NSWorkspace.shared.open(url)
         }
     }
 
@@ -260,6 +280,16 @@ struct TerminalBridge: NSViewRepresentable {
         guard FileManager.default.fileExists(atPath: candidate, isDirectory: &isDirectory) else { return nil }
         guard !isDirectory.boolValue else { return nil }
         return candidate
+    }
+
+    private func configureProgressCallback(_ view: GhosttyTerminalNSView) {
+        let paneID = state.id
+        let projectID = worktreeKey?.projectID
+        view.onProgressReport = { progress in
+            Task { @MainActor in
+                TerminalProgressStore.shared.setProgress(progress, for: paneID, projectID: projectID)
+            }
+        }
     }
 
     private func configureSearchCallbacks(_ view: GhosttyTerminalNSView) {

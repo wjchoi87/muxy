@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum CreateWorktreeResult {
@@ -10,11 +11,16 @@ struct CreateWorktreeSheet: View {
     let onFinish: (CreateWorktreeResult) -> Void
 
     @Environment(WorktreeStore.self) private var worktreeStore
+    @Environment(ProjectStore.self) private var projectStore
+    @AppStorage(GeneralSettingsKeys.defaultWorktreeParentPath)
+    private var defaultWorktreeParentPath = ""
     @State private var name: String = ""
     @State private var branchName: String = ""
     @State private var branchNameEdited = false
     @State private var createNewBranch = true
     @State private var selectedExistingBranch: String = ""
+    @State private var selectedParentPath: String?
+    @State private var usesProjectLocation = false
     @State private var availableBranches: [String] = []
     @State private var setupCommands: [String] = []
     @State private var runSetup = false
@@ -25,12 +31,12 @@ struct CreateWorktreeSheet: View {
     private let gitWorktree = GitWorktreeService.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: UIMetrics.scaled(14)) {
             Text("New Worktree")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: UIMetrics.fontHeadline, weight: .semibold))
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Name").font(.system(size: 11)).foregroundStyle(MuxyTheme.fgMuted)
+            VStack(alignment: .leading, spacing: UIMetrics.spacing3) {
+                Text("Name").font(.system(size: UIMetrics.fontFootnote)).foregroundStyle(MuxyTheme.fgMuted)
                 TextField("feature-x", text: $name)
                     .textFieldStyle(.roundedBorder)
             }
@@ -41,8 +47,8 @@ struct CreateWorktreeSheet: View {
             )
 
             if createNewBranch {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Branch Name").font(.system(size: 11)).foregroundStyle(MuxyTheme.fgMuted)
+                VStack(alignment: .leading, spacing: UIMetrics.spacing3) {
+                    Text("Branch Name").font(.system(size: UIMetrics.fontFootnote)).foregroundStyle(MuxyTheme.fgMuted)
                     TextField("feature-x", text: $branchName)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: branchName) { _, newValue in
@@ -50,8 +56,8 @@ struct CreateWorktreeSheet: View {
                         }
                 }
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Branch").font(.system(size: 11)).foregroundStyle(MuxyTheme.fgMuted)
+                VStack(alignment: .leading, spacing: UIMetrics.spacing3) {
+                    Text("Branch").font(.system(size: UIMetrics.fontFootnote)).foregroundStyle(MuxyTheme.fgMuted)
                     Picker("", selection: $selectedExistingBranch) {
                         ForEach(availableBranches, id: \.self) { branch in
                             Text(branch).tag(branch)
@@ -61,6 +67,8 @@ struct CreateWorktreeSheet: View {
                 }
             }
 
+            locationSection
+
             if setupCommands.isEmpty {
                 setupCommandsGuideSection
             } else {
@@ -69,7 +77,7 @@ struct CreateWorktreeSheet: View {
 
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.system(size: 11))
+                    .font(.system(size: UIMetrics.fontFootnote))
                     .foregroundStyle(MuxyTheme.diffRemoveFg)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -83,9 +91,10 @@ struct CreateWorktreeSheet: View {
                     .disabled(!canCreate || inProgress)
             }
         }
-        .padding(20)
-        .frame(width: 460)
+        .padding(UIMetrics.spacing8)
+        .frame(width: UIMetrics.scaled(460))
         .task {
+            loadLocation()
             await loadBranches()
             loadSetupCommands()
         }
@@ -99,66 +108,95 @@ struct CreateWorktreeSheet: View {
         }
     }
 
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: UIMetrics.spacing3) {
+            Text("Location").font(.system(size: UIMetrics.fontFootnote)).foregroundStyle(MuxyTheme.fgMuted)
+            HStack(spacing: UIMetrics.spacing4) {
+                Text(parentDirectoryPath)
+                    .font(.system(size: UIMetrics.fontFootnote, design: .monospaced))
+                    .foregroundStyle(MuxyTheme.fg)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, UIMetrics.spacing4)
+                    .padding(.vertical, UIMetrics.spacing3)
+                    .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: UIMetrics.radiusSM))
+
+                Button("Choose Folder...") {
+                    chooseParentDirectory()
+                }
+                .fixedSize(horizontal: true, vertical: false)
+
+                Button("Use Default") {
+                    selectedParentPath = nil
+                    usesProjectLocation = false
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .disabled(!usesProjectLocation)
+            }
+        }
+    }
+
     private var setupCommandsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: UIMetrics.spacing4) {
+            HStack(spacing: UIMetrics.spacing3) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
+                    .font(.system(size: UIMetrics.fontCaption))
                     .foregroundStyle(MuxyTheme.diffRemoveFg)
                 Text("Setup commands from .muxy/worktree.json")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: UIMetrics.fontFootnote, weight: .semibold))
                     .foregroundStyle(MuxyTheme.fg)
             }
             Text("These commands will run in the new worktree's terminal. Only enable this if you trust this repository.")
-                .font(.system(size: 10))
+                .font(.system(size: UIMetrics.fontCaption))
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: UIMetrics.spacing1) {
                 ForEach(setupCommands, id: \.self) { command in
                     Text(command)
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: UIMetrics.fontCaption, design: .monospaced))
                         .foregroundStyle(MuxyTheme.fg)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(8)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
+            .padding(UIMetrics.spacing4)
+            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: UIMetrics.radiusSM))
             Toggle("Run these commands after creating the worktree", isOn: $runSetup)
-                .font(.system(size: 11))
+                .font(.system(size: UIMetrics.fontFootnote))
         }
-        .padding(10)
-        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: 6))
+        .padding(UIMetrics.spacing5)
+        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: UIMetrics.radiusMD))
     }
 
     private var setupCommandsGuideSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: UIMetrics.spacing4) {
+            HStack(spacing: UIMetrics.spacing3) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 10))
+                    .font(.system(size: UIMetrics.fontCaption))
                     .foregroundStyle(MuxyTheme.fgDim)
                 Text("Optional setup commands")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: UIMetrics.fontFootnote, weight: .semibold))
                     .foregroundStyle(MuxyTheme.fg)
             }
             Text("To run setup commands after creating a worktree, add .muxy/worktree.json in this repository.")
-                .font(.system(size: 10))
+                .font(.system(size: UIMetrics.fontCaption))
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .fixedSize(horizontal: false, vertical: true)
             Text("\(project.path)/.muxy/worktree.json")
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(size: UIMetrics.fontCaption, design: .monospaced))
                 .foregroundStyle(MuxyTheme.fg)
                 .textSelection(.enabled)
             Text("{\n  \"setup\": [\n    \"pnpm install\",\n    \"pnpm dev\"\n  ]\n}")
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(size: UIMetrics.fontCaption, design: .monospaced))
                 .foregroundStyle(MuxyTheme.fg)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
+                .padding(UIMetrics.spacing4)
+                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: UIMetrics.radiusSM))
         }
-        .padding(10)
-        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: 6))
+        .padding(UIMetrics.spacing5)
+        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: UIMetrics.radiusMD))
     }
 
     private func loadSetupCommands() {
@@ -167,6 +205,37 @@ struct CreateWorktreeSheet: View {
             return
         }
         setupCommands = config.setup.map(\.command).filter { !$0.isEmpty }
+    }
+
+    private func loadLocation() {
+        guard selectedParentPath == nil, !usesProjectLocation else { return }
+        guard let path = WorktreeLocationResolver.normalizedPath(project.preferredWorktreeParentPath) else { return }
+        selectedParentPath = path
+        usesProjectLocation = true
+    }
+
+    private var resolvedProject: Project {
+        var resolved = project
+        resolved.preferredWorktreeParentPath = usesProjectLocation ? selectedParentPath : nil
+        return resolved
+    }
+
+    private var parentDirectoryPath: String {
+        WorktreeLocationResolver
+            .parentDirectory(for: resolvedProject, defaultParentPath: defaultWorktreeParentPath)
+            .path
+    }
+
+    private func chooseParentDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select where new worktrees for this project should be created"
+        panel.directoryURL = URL(fileURLWithPath: parentDirectoryPath, isDirectory: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        selectedParentPath = url.path
+        usesProjectLocation = true
     }
 
     private var canCreate: Bool {
@@ -193,6 +262,7 @@ struct CreateWorktreeSheet: View {
         }
     }
 
+    @MainActor
     private func create() async {
         inProgress = true
         errorMessage = nil
@@ -202,15 +272,28 @@ struct CreateWorktreeSheet: View {
             : selectedExistingBranch
 
         let slug = Self.slug(from: trimmedName)
-        let worktreeDirectory = MuxyFileStorage
-            .worktreeDirectory(forProjectID: project.id, name: slug)
-            .path(percentEncoded: false)
+        let parentDirectory = parentDirectoryPath
+        let worktreeDirectory = URL(fileURLWithPath: parentDirectory, isDirectory: true)
+            .appendingPathComponent(slug, isDirectory: true)
+            .path
 
         if FileManager.default.fileExists(atPath: worktreeDirectory) {
-            await MainActor.run {
-                inProgress = false
-                errorMessage = "A worktree with this name already exists on disk."
+            inProgress = false
+            errorMessage = "A worktree with this name already exists on disk."
+            return
+        }
+
+        do {
+            try await GitProcessRunner.offMainThrowing {
+                try FileManager.default.createDirectory(
+                    atPath: parentDirectory,
+                    withIntermediateDirectories: true,
+                    attributes: nil
+                )
             }
+        } catch {
+            inProgress = false
+            errorMessage = error.localizedDescription
             return
         }
 
@@ -222,10 +305,8 @@ struct CreateWorktreeSheet: View {
                 createBranch: createNewBranch
             )
         } catch {
-            await MainActor.run {
-                inProgress = false
-                errorMessage = error.localizedDescription
-            }
+            inProgress = false
+            errorMessage = error.localizedDescription
             return
         }
 
@@ -236,11 +317,13 @@ struct CreateWorktreeSheet: View {
             ownsBranch: createNewBranch,
             isPrimary: false
         )
-        await MainActor.run {
-            worktreeStore.add(worktree, to: project.id)
-            inProgress = false
-            onFinish(.created(worktree, runSetup: runSetup))
-        }
+        projectStore.setPreferredWorktreeParentPath(
+            id: project.id,
+            to: usesProjectLocation ? selectedParentPath : nil
+        )
+        worktreeStore.add(worktree, to: project.id)
+        inProgress = false
+        onFinish(.created(worktree, runSetup: runSetup))
     }
 
     private static func slug(from name: String) -> String {

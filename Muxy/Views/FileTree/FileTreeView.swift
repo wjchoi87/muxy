@@ -57,7 +57,7 @@ struct FileTreeView: View {
                                 .id(pending.token)
                             }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, UIMetrics.spacing2)
                     }
                     .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
                 }
@@ -118,25 +118,36 @@ struct FileTreeView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             Text((state.rootPath as NSString).lastPathComponent)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: UIMetrics.fontBody, weight: .semibold))
                 .foregroundStyle(MuxyTheme.fg)
                 .lineLimit(1)
                 .truncationMode(.head)
+                .padding(.leading, UIMetrics.spacing5)
             Spacer(minLength: 0)
-            IconButton(
-                symbol: state.showOnlyChanges ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
-                color: state.showOnlyChanges ? MuxyTheme.accent : MuxyTheme.fgMuted,
-                hoverColor: state.showOnlyChanges ? MuxyTheme.accent : MuxyTheme.fg,
-                accessibilityLabel: "Show Only Changes"
-            ) {
-                state.showOnlyChanges.toggle()
+            ToolbarIconStrip {
+                IconButton(
+                    symbol: "arrow.clockwise",
+                    color: MuxyTheme.fgMuted,
+                    hoverColor: MuxyTheme.fg,
+                    accessibilityLabel: "Refresh"
+                ) {
+                    state.refresh()
+                }
+                .help("Refresh")
+                IconButton(
+                    symbol: state.showOnlyChanges ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
+                    color: state.showOnlyChanges ? MuxyTheme.accent : MuxyTheme.fgMuted,
+                    hoverColor: state.showOnlyChanges ? MuxyTheme.accent : MuxyTheme.fg,
+                    accessibilityLabel: "Show Only Changes"
+                ) {
+                    state.showOnlyChanges.toggle()
+                }
+                .help(state.showOnlyChanges ? "Show All Files" : "Show Only Changed Files")
             }
-            .help(state.showOnlyChanges ? "Show All Files" : "Show Only Changed Files")
         }
-        .padding(.horizontal, 10)
-        .frame(height: 32)
+        .frame(height: UIMetrics.scaled(32))
         .contextMenu {
             FileTreeContextMenuContents(
                 path: state.rootPath,
@@ -315,8 +326,8 @@ private struct FileTreeRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Color.clear.frame(width: CGFloat(depth) * 12)
+        HStack(spacing: UIMetrics.spacing2) {
+            Color.clear.frame(width: CGFloat(depth) * UIMetrics.spacing6)
             icon
             if isRenaming {
                 FileTreeRenameField(
@@ -326,15 +337,15 @@ private struct FileTreeRow: View {
                 )
             } else {
                 Text(entry.name)
-                    .font(.system(size: 12))
+                    .font(.system(size: UIMetrics.fontBody))
                     .foregroundStyle(textColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6)
-        .frame(height: 22)
+        .padding(.horizontal, UIMetrics.spacing3)
+        .frame(height: UIMetrics.scaled(22))
         .opacity(rowOpacity)
         .background(rowBackground)
         .overlay(dropOverlay)
@@ -374,17 +385,17 @@ private struct FileTreeRow: View {
     @ViewBuilder
     private var dropOverlay: some View {
         if isDropHighlighted {
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: UIMetrics.scaled(3))
                 .stroke(MuxyTheme.accent, lineWidth: 1)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, UIMetrics.spacing2)
         }
     }
 
     private var icon: some View {
         Image(systemName: iconSymbol)
-            .font(.system(size: 11))
+            .font(.system(size: UIMetrics.fontFootnote))
             .foregroundStyle(iconColor)
-            .frame(width: 14)
+            .frame(width: UIMetrics.iconMD)
     }
 
     private var iconSymbol: String {
@@ -414,8 +425,7 @@ private struct FileTreeRow: View {
         case .added,
              .untracked:
             return MuxyTheme.diffAddFg
-        case .deleted,
-             .conflict:
+        case .conflict:
             return MuxyTheme.diffRemoveFg
         }
     }
@@ -434,7 +444,7 @@ private struct FileTreeRow: View {
         state.selectOnly(entry.absolutePath)
         if entry.isDirectory {
             state.toggle(entry)
-        } else if state.status(for: entry.absolutePath) != .deleted {
+        } else {
             onOpenFile(entry.absolutePath)
         }
     }
@@ -467,12 +477,12 @@ private struct FileTreeNewEntryRow: View {
     let commands: FileTreeCommands
 
     var body: some View {
-        HStack(spacing: 4) {
-            Color.clear.frame(width: CGFloat(depth) * 12)
+        HStack(spacing: UIMetrics.spacing2) {
+            Color.clear.frame(width: CGFloat(depth) * UIMetrics.spacing6)
             Image(systemName: kind == .folder ? "folder" : "doc")
-                .font(.system(size: 11))
+                .font(.system(size: UIMetrics.fontFootnote))
                 .foregroundStyle(MuxyTheme.fgMuted)
-                .frame(width: 14)
+                .frame(width: UIMetrics.iconMD)
             FileTreeRenameField(
                 initialName: "",
                 commit: { commands.commitNewEntry(name: $0) },
@@ -480,8 +490,8 @@ private struct FileTreeNewEntryRow: View {
             )
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6)
-        .frame(height: 22)
+        .padding(.horizontal, UIMetrics.spacing3)
+        .frame(height: UIMetrics.scaled(22))
     }
 }
 
@@ -498,7 +508,7 @@ private struct FileTreeRenameField: View {
     var body: some View {
         TextField("", text: $text)
             .textFieldStyle(.plain)
-            .font(.system(size: 12))
+            .font(.system(size: UIMetrics.fontBody))
             .foregroundStyle(MuxyTheme.fg)
             .focused($focused)
             .onAppear {

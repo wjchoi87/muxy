@@ -38,6 +38,10 @@ final class EditorSettings {
     var externalEditorCommand: String = "vim" { didSet { save() } }
     var markdownPreviewFontFamily: String = EditorSettings.defaultMarkdownPreviewFontFamily { didSet { save() } }
     var markdownPreviewFontScale: CGFloat = EditorSettings.defaultMarkdownPreviewFontScale { didSet { save() } }
+    var highlightCurrentLine: Bool = true { didSet { save() } }
+    var lineWrapping: Bool = false { didSet { save() } }
+    var showLineNumbers: Bool = true { didSet { save() } }
+    var richInputImageStrategy: RichInputImageStrategy = .clipboard { didSet { save() } }
 
     @ObservationIgnored private let store: CodableFileStore<Snapshot>
     @ObservationIgnored private var isBatchLoading = false
@@ -108,6 +112,10 @@ final class EditorSettings {
         externalEditorCommand = "vim"
         markdownPreviewFontFamily = Self.defaultMarkdownPreviewFontFamily
         markdownPreviewFontScale = Self.defaultMarkdownPreviewFontScale
+        highlightCurrentLine = true
+        lineWrapping = false
+        showLineNumbers = true
+        richInputImageStrategy = .clipboard
         isBatchLoading = false
         save()
     }
@@ -126,6 +134,10 @@ final class EditorSettings {
                 max(loadedScale, Self.minMarkdownPreviewFontScale),
                 Self.maxMarkdownPreviewFontScale
             )
+            highlightCurrentLine = snapshot.highlightCurrentLine ?? true
+            lineWrapping = snapshot.lineWrapping ?? false
+            showLineNumbers = snapshot.showLineNumbers ?? true
+            richInputImageStrategy = snapshot.richInputImageStrategy ?? .clipboard
             isBatchLoading = false
         } catch {
             logger.error("Failed to load editor settings: \(error.localizedDescription)")
@@ -142,7 +154,11 @@ final class EditorSettings {
                 quickOpenEditor: nil,
                 externalEditorCommand: externalEditorCommand,
                 markdownPreviewFontFamily: markdownPreviewFontFamily,
-                markdownPreviewFontScale: markdownPreviewFontScale
+                markdownPreviewFontScale: markdownPreviewFontScale,
+                highlightCurrentLine: highlightCurrentLine,
+                lineWrapping: lineWrapping,
+                showLineNumbers: showLineNumbers,
+                richInputImageStrategy: richInputImageStrategy
             ))
         } catch {
             logger.error("Failed to save editor settings: \(error.localizedDescription)")
@@ -158,4 +174,8 @@ private struct Snapshot: Codable {
     let externalEditorCommand: String?
     let markdownPreviewFontFamily: String?
     let markdownPreviewFontScale: CGFloat?
+    let highlightCurrentLine: Bool?
+    let lineWrapping: Bool?
+    let showLineNumbers: Bool?
+    let richInputImageStrategy: RichInputImageStrategy?
 }

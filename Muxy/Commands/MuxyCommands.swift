@@ -212,6 +212,12 @@ struct MuxyCommands: Commands {
             }
             .shortcut(for: .quickOpen, store: keyBindings)
 
+            Button("Find in Files") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.findInFiles)
+            }
+            .shortcut(for: .findInFiles, store: keyBindings)
+
             Button("Save") {
                 guard isMainWindowFocused else { return }
                 performShortcutAction(.saveFile)
@@ -286,6 +292,18 @@ struct MuxyCommands: Commands {
                 performShortcutAction(.focusPaneDown)
             }
             .shortcut(for: .focusPaneDown, store: keyBindings)
+
+            Button("Cycle Next Tab (All Panes)") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.cycleNextTabAcrossPanes)
+            }
+            .shortcut(for: .cycleNextTabAcrossPanes, store: keyBindings)
+
+            Button("Cycle Previous Tab (All Panes)") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.cyclePreviousTabAcrossPanes)
+            }
+            .shortcut(for: .cyclePreviousTabAcrossPanes, store: keyBindings)
         }
 
         CommandGroup(after: .toolbar) {
@@ -344,9 +362,15 @@ struct MuxyCommands: Commands {
             }
             .shortcut(for: .toggleSidebar, store: keyBindings)
 
+            Button("Toggle Rich Input") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.toggleRichInput)
+            }
+            .shortcut(for: .toggleRichInput, store: keyBindings)
+
             Divider()
 
-            Button("Switch Worktree...") {
+            Button("Open Switcher...") {
                 guard isMainWindowFocused else { return }
                 performShortcutAction(.switchWorktree)
             }
@@ -392,5 +416,39 @@ struct MuxyCommands: Commands {
             }
             .shortcut(for: .toggleAIUsage, store: keyBindings)
         }
+
+        CommandGroup(replacing: .help) {
+            Button("Muxy Help") {
+                openHelpWindow()
+            }
+
+            Divider()
+
+            Button("Documentation") {
+                HelpLinks.openDocs()
+            }
+
+            Button("GitHub Repository") {
+                HelpLinks.openRepo()
+            }
+
+            Button("Mobile App Repository") {
+                HelpLinks.openMobileRepo()
+            }
+
+            Button("Discord") {
+                HelpLinks.openDiscord()
+            }
+
+            Divider()
+
+            Button("Report an Issue...") {
+                HelpLinks.openIssues()
+            }
+        }
+    }
+
+    private func openHelpWindow() {
+        NotificationCenter.default.post(name: .openHelpWindow, object: nil)
     }
 }

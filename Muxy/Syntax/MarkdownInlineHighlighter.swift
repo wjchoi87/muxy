@@ -246,34 +246,6 @@ enum MarkdownInlineHighlighter {
 
 @MainActor
 enum MarkdownInlineStyle {
-    static let headingScales: [CGFloat] = [1.6, 1.45, 1.3, 1.18, 1.08, 1.0]
-
-    static func headingFontSize(baseSize: CGFloat, level: Int) -> CGFloat {
-        let clamped = max(1, min(level, headingScales.count))
-        return baseSize * headingScales[clamped - 1]
-    }
-
-    static func font(for kind: MarkdownInlineDecoration.Kind, baseFont: NSFont) -> NSFont? {
-        switch kind {
-        case let .heading(level):
-            let size = headingFontSize(baseSize: baseFont.pointSize, level: level)
-            let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.bold)
-            return NSFont(descriptor: descriptor, size: size) ?? baseFont
-        case .bold:
-            return applyTraits(.bold, to: baseFont)
-        case .italic:
-            return applyTraits(.italic, to: baseFont)
-        case .boldItalic:
-            return applyTraits([.bold, .italic], to: baseFont)
-        case .strikethrough,
-             .codeSpan,
-             .marker,
-             .blockquote,
-             .listMarker:
-            return nil
-        }
-    }
-
     static func foregroundColor(for kind: MarkdownInlineDecoration.Kind) -> NSColor? {
         switch kind {
         case .heading:
@@ -294,10 +266,5 @@ enum MarkdownInlineStyle {
 
     static func strikethroughStyle(for kind: MarkdownInlineDecoration.Kind) -> NSUnderlineStyle? {
         kind == .strikethrough ? .single : nil
-    }
-
-    private static func applyTraits(_ traits: NSFontDescriptor.SymbolicTraits, to font: NSFont) -> NSFont {
-        let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
-        return NSFont(descriptor: descriptor, size: font.pointSize) ?? font
     }
 }
