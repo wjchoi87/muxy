@@ -115,6 +115,7 @@ struct MuxyApp: App {
                 ghostty: .shared,
                 updateService: .shared
             )
+            DiagnosticsCommands()
         }
 
         Window("Source Control", id: "vcs") {
@@ -234,7 +235,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationSocketServer.shared.start()
         AIProviderRegistry.shared.installAll()
         _ = AIUsageSettingsStore.isUsageEnabled()
-        DiagnosticsMenuController.shared.install()
 
         consumeLaunchArguments()
     }

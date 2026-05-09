@@ -60,6 +60,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("Metal"),
                 .linkedFramework("MetalKit"),
+                .linkedFramework("MetricKit"),
                 .linkedFramework("QuartzCore"),
                 .linkedLibrary("c++"),
             ]
