@@ -60,7 +60,9 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
                 onSubmit: { confirmSelection() },
                 onEscape: { onDismiss() },
                 onArrowUp: { moveHighlight(-1) },
-                onArrowDown: { moveHighlight(1) }
+                onArrowDown: { moveHighlight(1) },
+                onPageUp: { moveHighlight(-10) },
+                onPageDown: { moveHighlight(10) }
             )
         }
         .padding(.horizontal, UIMetrics.spacing6)
@@ -148,6 +150,8 @@ struct PaletteSearchField: NSViewRepresentable {
     let onEscape: () -> Void
     let onArrowUp: () -> Void
     let onArrowDown: () -> Void
+    var onPageUp: () -> Void = {}
+    var onPageDown: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -164,6 +168,9 @@ struct PaletteSearchField: NSViewRepresentable {
         field.placeholderString = placeholder
         field.cell?.sendsActionOnEndEditing = false
         field.onEscape = onEscape
+        field.onTextChange = { field in
+            context.coordinator.syncText(from: field, skipsMarkedText: true)
+        }
         DispatchQueue.main.async {
             field.window?.makeFirstResponder(field)
         }
@@ -172,14 +179,18 @@ struct PaletteSearchField: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
         context.coordinator.parent = self
-        if nsView.stringValue != text {
+        if nsView.currentEditor() == nil, nsView.stringValue != text {
             nsView.stringValue = text
         }
         if let field = nsView as? PaletteNSTextField {
             field.onEscape = onEscape
+            field.onTextChange = { field in
+                context.coordinator.syncText(from: field, skipsMarkedText: true)
+            }
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: PaletteSearchField
 
@@ -189,15 +200,16 @@ struct PaletteSearchField: NSViewRepresentable {
 
         func controlTextDidChange(_ obj: Notification) {
             guard let field = obj.object as? NSTextField else { return }
-            parent.text = field.stringValue
+            syncText(from: field, skipsMarkedText: true)
         }
 
         func control(
             _ control: NSControl,
-            textView _: NSTextView,
+            textView: NSTextView,
             doCommandBy commandSelector: Selector
         ) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                syncText(from: control, textView: textView, skipsMarkedText: false)
                 parent.onSubmit()
                 return true
             }
@@ -209,13 +221,49 @@ struct PaletteSearchField: NSViewRepresentable {
                 parent.onArrowDown()
                 return true
             }
+            if commandSelector == #selector(NSResponder.pageUp(_:))
+                || commandSelector == #selector(NSResponder.scrollPageUp(_:)) {
+                parent.onPageUp()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.pageDown(_:))
+                || commandSelector == #selector(NSResponder.scrollPageDown(_:)) {
+                parent.onPageDown()
+                return true
+            }
             return false
+        }
+
+        func syncText(
+            from control: NSControl,
+            textView: NSTextView? = nil,
+            skipsMarkedText: Bool
+        ) {
+            if skipsMarkedText, textView?.hasMarkedText() == true {
+                return
+            }
+            if skipsMarkedText, (control.currentEditor() as? NSTextView)?.hasMarkedText() == true {
+                return
+            }
+
+            let currentText = textView?.string
+                ?? (control.currentEditor() as? NSTextView)?.string
+                ?? control.stringValue
+            if parent.text != currentText {
+                parent.text = currentText
+            }
         }
     }
 }
 
 private final class PaletteNSTextField: NSTextField {
     var onEscape: (() -> Void)?
+    var onTextChange: ((NSTextField) -> Void)?
+
+    override func textDidChange(_ notification: Notification) {
+        super.textDidChange(notification)
+        onTextChange?(self)
+    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.keyCode == 53 {
