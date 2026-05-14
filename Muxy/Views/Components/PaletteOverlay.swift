@@ -222,12 +222,14 @@ struct PaletteSearchField: NSViewRepresentable {
                 return true
             }
             if commandSelector == #selector(NSResponder.pageUp(_:))
-                || commandSelector == #selector(NSResponder.scrollPageUp(_:)) {
+                || commandSelector == #selector(NSResponder.scrollPageUp(_:))
+            {
                 parent.onPageUp()
                 return true
             }
             if commandSelector == #selector(NSResponder.pageDown(_:))
-                || commandSelector == #selector(NSResponder.scrollPageDown(_:)) {
+                || commandSelector == #selector(NSResponder.scrollPageDown(_:))
+            {
                 parent.onPageDown()
                 return true
             }
