@@ -964,7 +964,7 @@ struct MainWindow: View {
             .accessibilityHidden(true)
             .overlay {
                 Color.clear
-                    .frame(width: UIMetrics.scaled(5))
+                    .frame(width: UIMetrics.resizeHandleHitArea)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 1)
@@ -981,7 +981,7 @@ struct MainWindow: View {
             .accessibilityHidden(true)
             .overlay {
                 Color.clear
-                    .frame(height: UIMetrics.scaled(5))
+                    .frame(height: UIMetrics.resizeHandleHitArea)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 1)

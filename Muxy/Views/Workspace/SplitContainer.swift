@@ -38,7 +38,7 @@ struct SplitContainer: View {
                     .overlay(Rectangle().fill(MuxyTheme.border))
                     .overlay {
                         Color.clear
-                            .frame(width: h ? UIMetrics.scaled(5) : nil, height: h ? nil : UIMetrics.scaled(5))
+                            .frame(width: h ? UIMetrics.resizeHandleHitArea : nil, height: h ? nil : UIMetrics.resizeHandleHitArea)
                             .contentShape(Rectangle())
                             .gesture(
                                 DragGesture(minimumDistance: 1)

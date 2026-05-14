@@ -1343,7 +1343,7 @@ private struct SectionSplitLayout: View {
         Rectangle().fill(MuxyTheme.border).frame(height: 1)
             .overlay {
                 Color.clear
-                    .frame(height: UIMetrics.scaled(5))
+                    .frame(height: UIMetrics.resizeHandleHitArea)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 1)
