@@ -10,10 +10,13 @@ struct ResizeHandle: View {
     let axis: Axis
     let onDrag: (DragGesture.Value) -> Void
     @State private var hovering = false
+    @GestureState private var dragging = false
+
+    private var active: Bool { hovering || dragging }
 
     var body: some View {
         Rectangle()
-            .fill(hovering ? MuxyTheme.accent : MuxyTheme.border)
+            .fill(active ? MuxyTheme.accent : MuxyTheme.border)
             .frame(width: axis == .horizontal ? 1 : nil, height: axis == .vertical ? 1 : nil)
             .overlay {
                 Color.clear
@@ -24,19 +27,18 @@ struct ResizeHandle: View {
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 1)
-                            .onChanged(onDrag)
+                            .updating($dragging) { _, state, _ in state = true }
+                            .onChanged { value in
+                                cursor.set()
+                                onDrag(value)
+                            }
                     )
                     .onHover { on in
                         hovering = on
                         if on {
                             cursor.set()
-                        } else {
+                        } else if !dragging {
                             NSCursor.arrow.set()
-                        }
-                    }
-                    .onContinuousHover { phase in
-                        if hovering, case .active = phase {
-                            cursor.set()
                         }
                     }
             }
