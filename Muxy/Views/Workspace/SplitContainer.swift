@@ -24,9 +24,8 @@ struct SplitContainer: View {
         GeometryReader { geo in
             let h = branch.direction == .horizontal
             let total = h ? geo.size.width : geo.size.height
-            let handleSize = UIMetrics.resizeHandleHitArea
-            let first = max(0, total * branch.ratio - handleSize / 2)
-            let second = max(0, total * (1 - branch.ratio) - handleSize / 2)
+            let first = max(0, total * branch.ratio - 0.5)
+            let second = max(0, total * (1 - branch.ratio) - 0.5)
 
             let layout = h ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
 
