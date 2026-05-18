@@ -61,8 +61,8 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
                 onEscape: { onDismiss() },
                 onArrowUp: { moveHighlight(-1) },
                 onArrowDown: { moveHighlight(1) },
-                onPageUp: { moveHighlight(-10) },
-                onPageDown: { moveHighlight(10) }
+                onPageUp: { moveHighlight(-PaletteSearchField.pageJump) },
+                onPageDown: { moveHighlight(PaletteSearchField.pageJump) }
             )
         }
         .padding(.horizontal, UIMetrics.spacing6)
@@ -143,6 +143,8 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
 }
 
 struct PaletteSearchField: NSViewRepresentable {
+    static let pageJump = 10
+
     @Binding var text: String
     let placeholder: String
     var fontSize: CGFloat = UIMetrics.fontEmphasis
@@ -168,9 +170,6 @@ struct PaletteSearchField: NSViewRepresentable {
         field.placeholderString = placeholder
         field.cell?.sendsActionOnEndEditing = false
         field.onEscape = onEscape
-        field.onTextChange = { field in
-            context.coordinator.syncText(from: field, skipsMarkedText: true)
-        }
         DispatchQueue.main.async {
             field.window?.makeFirstResponder(field)
         }
@@ -184,9 +183,6 @@ struct PaletteSearchField: NSViewRepresentable {
         }
         if let field = nsView as? PaletteNSTextField {
             field.onEscape = onEscape
-            field.onTextChange = { field in
-                context.coordinator.syncText(from: field, skipsMarkedText: true)
-            }
         }
     }
 
@@ -205,11 +201,11 @@ struct PaletteSearchField: NSViewRepresentable {
 
         func control(
             _ control: NSControl,
-            textView: NSTextView,
+            textView _: NSTextView,
             doCommandBy commandSelector: Selector
         ) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                syncText(from: control, textView: textView, skipsMarkedText: false)
+                syncText(from: control, skipsMarkedText: false)
                 parent.onSubmit()
                 return true
             }
@@ -236,21 +232,12 @@ struct PaletteSearchField: NSViewRepresentable {
             return false
         }
 
-        func syncText(
-            from control: NSControl,
-            textView: NSTextView? = nil,
-            skipsMarkedText: Bool
-        ) {
-            if skipsMarkedText, textView?.hasMarkedText() == true {
+        func syncText(from control: NSControl, skipsMarkedText: Bool) {
+            let editor = control.currentEditor() as? NSTextView
+            if skipsMarkedText, editor?.hasMarkedText() == true {
                 return
             }
-            if skipsMarkedText, (control.currentEditor() as? NSTextView)?.hasMarkedText() == true {
-                return
-            }
-
-            let currentText = textView?.string
-                ?? (control.currentEditor() as? NSTextView)?.string
-                ?? control.stringValue
+            let currentText = editor?.string ?? control.stringValue
             if parent.text != currentText {
                 parent.text = currentText
             }
@@ -260,12 +247,6 @@ struct PaletteSearchField: NSViewRepresentable {
 
 private final class PaletteNSTextField: NSTextField {
     var onEscape: (() -> Void)?
-    var onTextChange: ((NSTextField) -> Void)?
-
-    override func textDidChange(_ notification: Notification) {
-        super.textDidChange(notification)
-        onTextChange?(self)
-    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.keyCode == 53 {

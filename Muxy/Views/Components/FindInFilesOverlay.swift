@@ -48,8 +48,8 @@ struct FindInFilesOverlay: View {
                 onEscape: { onDismiss() },
                 onArrowUp: { moveHighlight(-1) },
                 onArrowDown: { moveHighlight(1) },
-                onPageUp: { moveHighlight(-10) },
-                onPageDown: { moveHighlight(10) }
+                onPageUp: { moveHighlight(-PaletteSearchField.pageJump) },
+                onPageDown: { moveHighlight(PaletteSearchField.pageJump) }
             )
         }
         .padding(.horizontal, UIMetrics.spacing6)
