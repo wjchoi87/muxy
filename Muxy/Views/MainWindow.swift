@@ -104,6 +104,7 @@ struct MainWindow: View {
     @State private var showQuickOpen = false
     @State private var showFindInFiles = false
     @State private var showWorktreeSwitcher = false
+    @State private var showProjectPicker = false
     @State private var overlayAnimatingOut = false
     @State private var isFullScreen = false
     @AppStorage("muxy.sidebarExpanded") private var sidebarExpanded = false
@@ -125,7 +126,7 @@ struct MainWindow: View {
         .overlay(alignment: .topLeading) {
             titleBarNavigationOverlay
         }
-        .environment(\.overlayActive, showQuickOpen || showFindInFiles || showWorktreeSwitcher || overlayAnimatingOut)
+        .environment(\.overlayActive, showQuickOpen || showFindInFiles || showWorktreeSwitcher || showProjectPicker || overlayAnimatingOut)
         .overlay(alignment: .bottom) {
             if voiceRecording.isPanelVisible {
                 VoiceRecordingPanel(state: voiceRecording, autoSend: recordingAutoSend)
@@ -200,13 +201,40 @@ struct MainWindow: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .overlay {
+            if showProjectPicker {
+                ProjectPickerOverlay(
+                    projectPaths: projectStore.projects.map(\.path),
+                    onConfirm: { path, createIfMissing in
+                        ProjectOpenService.confirmProjectPathResult(
+                            path,
+                            appState: appState,
+                            projectStore: projectStore,
+                            worktreeStore: worktreeStore,
+                            createIfMissing: createIfMissing
+                        )
+                    },
+                    onChooseFinder: {
+                        ProjectOpenService.openProject(
+                            appState: appState,
+                            projectStore: projectStore,
+                            worktreeStore: worktreeStore
+                        )
+                    },
+                    onDismiss: { showProjectPicker = false }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
         .animation(.easeInOut(duration: 0.15), value: showQuickOpen)
         .animation(.easeInOut(duration: 0.15), value: showFindInFiles)
         .animation(.easeInOut(duration: 0.15), value: showWorktreeSwitcher)
+        .animation(.easeInOut(duration: 0.15), value: showProjectPicker)
         .modifier(OverlayExitTracker(
             showQuickOpen: showQuickOpen,
             showFindInFiles: showFindInFiles,
             showWorktreeSwitcher: showWorktreeSwitcher,
+            showProjectPicker: showProjectPicker,
             onAnimatingOut: { overlayAnimatingOut = $0 }
         ))
         .animation(.easeInOut(duration: 0.2), value: ToastState.shared.message != nil)
@@ -226,6 +254,9 @@ struct MainWindow: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .findInFiles)) { _ in
             showFindInFiles.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openProjectPicker)) { _ in
+            showProjectPicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .switchWorktree)) { _ in
             showWorktreeSwitcher.toggle()
@@ -960,37 +991,17 @@ struct MainWindow: View {
     }
 
     private func sidePanelResizeHandle(onDrag: @escaping (CGFloat) -> Void) -> some View {
-        Rectangle().fill(MuxyTheme.border).frame(width: 1)
-            .accessibilityHidden(true)
-            .overlay {
-                Color.clear
-                    .frame(width: UIMetrics.scaled(5))
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 1)
-                            .onChanged { v in onDrag(v.translation.width) }
-                    )
-                    .onHover { on in
-                        if on { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                    }
-            }
+        ResizeHandle(axis: .horizontal) { v in
+            onDrag(v.translation.width)
+        }
+        .accessibilityHidden(true)
     }
 
     private func bottomPanelResizeHandle(onDrag: @escaping (CGFloat) -> Void) -> some View {
-        Rectangle().fill(MuxyTheme.border).frame(height: 1)
-            .accessibilityHidden(true)
-            .overlay {
-                Color.clear
-                    .frame(height: UIMetrics.scaled(5))
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 1)
-                            .onChanged { v in onDrag(v.translation.height) }
-                    )
-                    .onHover { on in
-                        if on { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
-                    }
-            }
+        ResizeHandle(axis: .vertical) { v in
+            onDrag(v.translation.height)
+        }
+        .accessibilityHidden(true)
     }
 
     private var activeFileTreeState: FileTreeState? {
@@ -1643,6 +1654,7 @@ private struct OverlayExitTracker: ViewModifier {
     let showQuickOpen: Bool
     let showFindInFiles: Bool
     let showWorktreeSwitcher: Bool
+    let showProjectPicker: Bool
     let onAnimatingOut: (Bool) -> Void
 
     func body(content: Content) -> some View {
@@ -1650,6 +1662,7 @@ private struct OverlayExitTracker: ViewModifier {
             .onChange(of: showQuickOpen) { _, visible in trackExit(visible) }
             .onChange(of: showFindInFiles) { _, visible in trackExit(visible) }
             .onChange(of: showWorktreeSwitcher) { _, visible in trackExit(visible) }
+            .onChange(of: showProjectPicker) { _, visible in trackExit(visible) }
     }
 
     private func trackExit(_ visible: Bool) {
